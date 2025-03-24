@@ -1,0 +1,1 @@
+from api.extract.extract_text import router

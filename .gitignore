@@ -1,0 +1,9 @@
+# Ignore virtual environment
+venv/
+
+# Ignore Streamlit config
+.streamlit/
+
+# Ignore other common files
+*.log
+__pycache__/
