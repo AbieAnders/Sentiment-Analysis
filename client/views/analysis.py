@@ -11,16 +11,16 @@ st.title("Sentiment & Comparative Analysis")
 
 if st.sidebar.button("Analyze Sentiment"):
     try:
-        response = requests.post(f"{api_base_url}/api/analyse/sentiment_rpt", json={"articles": st.session_state.search_results})
-        if response.status_code == 200:
-            st.session_state.data = response.json()
+        sentiment_response = requests.post(f"{api_base_url}/api/analyse/sentiment_rpt", json={"articles": st.session_state.search_results})
+        if sentiment_response.status_code == 200:
+            st.session_state.data = sentiment_response.json()
             data = st.session_state.data
             st.write("## Sentiment Analysis Results")
             for res in data["analysis"]:
-                    st.write(f"**Text:** {res['text']}")
-                    st.write(f"**Sentiment:** {res['sentiment']}")
-                    st.write(f"**Confidence Score:** {res['score']:.2f}")
-                    st.write("---")
+                st.write(f"**Text:** {res['text']}")
+                st.write(f"**Sentiment:** {res['sentiment']}")
+                st.write(f"**Confidence Score:** {res['score']:.2f}")
+                st.write("---")
 
             if data.get("most_positive"):
                 st.write("### Most Positive Text")
@@ -60,3 +60,14 @@ if st.sidebar.button("Generate Comparison Report"):
                 st.write(f"Score: {data['most_negative']['score']:.2f}")
         except Exception as e:
             st.error(f"An error occurred: {e}")
+
+if st.sidebar.button("Collected Data"):
+    analysis_data = st.session_state.data.get('analysis')
+    min_length = min(len(analysis_data), len(st.session_state.search_results))
+    #overall_data = {**analysis_data, **st.session_state.search_results}
+    overall_data = [
+        { **analysis_data[i], **st.session_state.search_results[i] } 
+        for i in range(min_length)
+    ]
+    st.write(overall_data)
+    #st.write(st.session_state.search_results)

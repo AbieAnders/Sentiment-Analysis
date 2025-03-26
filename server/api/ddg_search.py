@@ -1,5 +1,6 @@
 import re
-from typing import Dict, List, LiteralString
+import time
+from typing import Dict, List
 
 from bs4 import BeautifulSoup
 import requests
@@ -11,6 +12,8 @@ from difflib import SequenceMatcher
 from nltk.corpus import stopwords # type: ignore
 import nltk # type: ignore
 nltk.download('stopwords')
+from keybert import KeyBERT # type: ignore
+from transformers import pipeline
 
 router = APIRouter()
 
@@ -18,6 +21,7 @@ router = APIRouter()
 def fetch_html(url: str) -> str:
     try:
         headers = {'User-Agent': 'Mozilla/5.0'}
+        time.sleep(1)
         response = requests.get(url, headers=headers, timeout=10)
         if response.status_code == 200:
             return response.text
@@ -75,6 +79,20 @@ def deduplicate_by_content(articles: List[Dict[str, str]], threshold=0.8) -> Lis
             unique_articles.append(article)
     return unique_articles
 
+def extract_topics(text):
+    keyword_model = KeyBERT()
+    keywords = keyword_model.extract_keywords(text, keyphrase_ngram_range=(1, 2), stop_words='english')
+    return [kw[0] for kw in keywords]
+
+summarizer = pipeline("summarization", model="sshleifer/distilbart-cnn-12-6")
+def summarize_text(text):
+    try:
+        summary = summarizer(text[:1024], max_length=150, min_length=30, do_sample=False)
+        return summary[0]['summary_text']
+    except Exception as e:
+        return str(e)
+
+# Implement the search and extraction part asynchronously
 def search_extract(search_keywords: str, search_region: str, search_moderation: str, search_time_frame: str):
     collected_articles = []
     max_attempts = 10
@@ -107,16 +125,20 @@ def search_extract(search_keywords: str, search_region: str, search_moderation: 
             if not cleaned_text:
                 continue
             article['text'] = cleaned_text
+            topics = extract_topics(cleaned_text)
+            if not topics:
+                article['topics'] = []
+            summary = summarize_text(cleaned_text)
+            article['summary'] = summary
             collected_articles.append(article)
         except Exception as e:
             continue
     return collected_articles
-        
+
 @router.get("/search_ddg")
 async def search_for_url(search_query: str, search_region: str, search_moderation: str, search_time: str):
     keywords = obtain_keywords(search_query)
     print(f"Extracted Keywords: {keywords}")
 
     search_results = list(search_extract(keywords, search_region, search_moderation, search_time))
-    print(len(search_results))
     return {"results": search_results}

@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from gtts import gTTS # type: ignore
+from googletrans import Translator
 import os
 from transformers import pipeline
 sentiment_analyzer = pipeline("sentiment-analysis")
@@ -21,20 +22,23 @@ class SentimentRequest(BaseModel):
     articles: list[Article]
 
 def hf_sentiment_transformer(text):
-    truncated_text = text[:512] #sadly have to truncate to fit token limits
+    truncated_text = text[:512] #sadly have to truncate to fit token limit
     try:
         result = sentiment_analyzer(truncated_text)[0]
         return {"text": text, "sentiment": result["label"], "score": result["score"]}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-def generate_tts(text, sentiment_label):
+async def generate_tts(text, sentiment_label):
     if not text:
         return None
     try:
-        tts = gTTS(text=text, lang="hi", slow=False)
+        translator = Translator()
+        translated_text = await translator.translate(text, src='en', dest='hi')
+        tts = gTTS(text=translated_text.text, lang="hi", slow=False)
         filename = f"{sentiment_label}_speech.mp3"
         tts.save(filename)
+        #print("tts done")
         return filename
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error generating {sentiment_label} TTS: {e}")
@@ -57,8 +61,8 @@ async def generate_sentiment(request: SentimentRequest):
         most_positive = max(positive_texts, key=lambda x: x['score'], default=None)
         most_negative = max(negative_texts, key=lambda x: x['score'], default=None)
 
-        positive_file = generate_tts(most_positive['text'], "most_positive") if most_positive else None
-        negative_file = generate_tts(most_negative['text'], "most_negative") if most_negative else None
+        positive_file = await generate_tts(most_positive['text'], "most_positive") if most_positive else None
+        negative_file = await generate_tts(most_negative['text'], "most_negative") if most_negative else None
 
         return {
             "analysis": analysis_results,
